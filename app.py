@@ -200,7 +200,7 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("PJメンバーのチャット")
     team_files = st.file_uploader(
-        "CSVファイルを複数選択してください",
+        "PJメンバーのチャットのCSVファイルを選択してください",
         type="csv",
         accept_multiple_files=True,
         key="team_uploader"
@@ -209,7 +209,7 @@ with col1:
 with col2:
     st.subheader("自分のチャット")
     my_file = st.file_uploader(
-        "CSVファイルを1つ選択してください",
+        "自分のチャットのCSVファイルを選択してください",
         type="csv",
         accept_multiple_files=False,
         key="my_uploader"
