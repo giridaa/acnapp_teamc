@@ -1,14 +1,13 @@
 ## ライブラリインポート
 import streamlit as st
 import pandas as pd
-import MeCab
-import unidic.util
 import numpy as np
 import plotly.graph_objects as go
-from io import StringIO
 import google.generativeai as genai
 import os
 import json
+from io import StringIO
+from janome.tokenizer import Tokenizer
 
 # --- 0. Gemini APIキーの設定 ---
 # Streamlitのシークレット管理機能からAPIキーを取得
@@ -26,15 +25,11 @@ except Exception as e:
     st.error(f"APIキー設定に予期せぬエラーが発生しました:{e}")
     exit()
 
-# --- 1. MeCabの初期化 ---
+# --- 1. Janomeの初期化 ---
 try:
-    # unidic-liteの辞書パスを自動で取得してMeCabを初期化
-    dic_path = unidic.util.dicdir()
-    mecab = MeCab.Tagger(f"-Owakati -d {dic_path}")
-    #mecab = MeCab.Tagger("-Owakati")
+    janome_tokenizer = Tokenizer()
 except Exception as e:
-    st.error(f"MeCabの初期化に失敗しました。エラー: {e}")
-    st.info("このアプリをローカル環境で動かすには、MeCab本体のインストールが必要です。")
+    st.error(f"Janomeの初期化に失敗しました。エラー: {e}")
     st.stop()
 
 
@@ -47,11 +42,12 @@ PERSONALITY_WORDS = {
     '開放性': ['新しい', 'アイデア', '面白い', '試す', '想像', 'わくわく', '？', 'なるほど']
 }
 
-## チャットのテキストをMeCabで単語に切り分け
+## チャットのテキストをJanomeで単語に切り分け
 def analyze_personality(text):
     if not isinstance(text, str) or not text.strip():
         return {p: 0 for p in PERSONALITY_WORDS.keys()}
-    words = mecab.parse(text).split()
+    # ↓ Janomeの処理に置き換え
+    words = [token.surface for token in janome_tokenizer.tokenize(text)]
     scores = {p: 0 for p in PERSONALITY_WORDS.keys()}
     for personality, keywords in PERSONALITY_WORDS.items():
         for word in keywords:
