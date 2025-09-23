@@ -4,3 +4,4 @@ mecab-python3
 numpy
 plotly
 google-generativeai
+unidic-lite

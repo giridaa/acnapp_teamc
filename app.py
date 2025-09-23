@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import MeCab
+import unidic.util
 import numpy as np
 import plotly.graph_objects as go
 from io import StringIO
@@ -27,8 +28,8 @@ except Exception as e:
 
 # --- 1. MeCabの初期化 ---
 try:
-    # StreamlitのLinux環境での標準的な辞書のパスを指定
-    dic_path = "/var/lib/mecab/dic/ipadic-utf8"
+    # unidic-liteの辞書パスを自動で取得してMeCabを初期化
+    dic_path = unidic.util.dicdir()
     mecab = MeCab.Tagger(f"-Owakati -d {dic_path}")
     #mecab = MeCab.Tagger("-Owakati")
 except Exception as e:
