@@ -27,7 +27,10 @@ except Exception as e:
 
 # --- 1. MeCabの初期化 ---
 try:
-    mecab = MeCab.Tagger("-Owakati")
+    # StreamlitのLinux環境での標準的な辞書のパスを指定
+    dic_path = "/var/lib/mecab/dic/ipadic-utf8"
+    mecab = MeCab.Tagger(f"-Owakati -d {dic_path}")
+    #mecab = MeCab.Tagger("-Owakati")
 except Exception as e:
     st.error(f"MeCabの初期化に失敗しました。エラー: {e}")
     st.info("このアプリをローカル環境で動かすには、MeCab本体のインストールが必要です。")
