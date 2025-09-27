@@ -167,7 +167,7 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     ## max_retriesで指定した回数だけ、成功するまで処理を試み
     for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt)    
+            response = model.generate_content(prompt)
             ## Geminiが出力することがある余計な文字列を削除
             cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
             ## AIの回答（文字列）をJSON形式（辞書）に変換
@@ -177,12 +177,13 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
             if all(k in persona_data for k in ["persona", "common_point", "communication_point"]):
                 return persona_data  ## 成功したら、結果の辞書を返す
                 
-    except (json.JSONDecodeError, Exception) as e:
+        except (json.JSONDecodeError, Exception) as e:
             st.error(f"AIからの応答処理中にエラーが発生しました（試行 {attempt + 1}回目）")
             st.error(f"エラー内容: {e}")
             # response変数が存在し、text属性を持つか確認
             if 'response' in locals() and hasattr(response, 'text'):
                 st.text_area("AIからの生の応答:", response.text, height=150)
+            
             if attempt == max_retries - 1:
                 st.warning(f"AIによるペルソナ生成に失敗しました（試行回数: {max_retries}回）。")
                 return default_response
