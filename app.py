@@ -142,28 +142,28 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
         "communication_point": "コミュニケーションのポイントの解析に失敗しました。"
     }
 
-prompt = f"""
-あなたは、優秀な組織人事コンサルタントです。
-以下の情報を基に、{target_user_name}さんのペルソナを分析してください。
+    prompt = f"""
+    あなたは、優秀な組織人事コンサルタントです。
+    以下の情報を基に、{target_user_name}さんのペルソナを分析してください。
 
-# 分析対象者の情報
-- 氏名: {target_user_name}
-- 性格スコア: {target_user_scores}
-- チャット発言の抜粋: {target_user_text[:200]}
+    # 分析対象者の情報
+    - 氏名: {target_user_name}
+    - 性格スコア: {target_user_scores}
+    - チャット発言の抜粋: {target_user_text[:200]}
 
-# 比較対象者（自分）の情報
-- 性格スコア: {my_scores}
+    # 比較対象者（自分）の情報
+    - 性格スコア: {my_scores}
 
-#【最重要ルール】
-- **必ず、以下のキーを持つJSONオブジェクト"だけ"を生成してください。**
-- **解説や前置き、```jsonのような追加の文字列は絶対に含めないでください。**
+    #【最重要ルール】
+    - **必ず、以下のキーを持つJSONオブジェクト"だけ"を生成してください。**
+    - **解説や前置き、```jsonのような追加の文字列は絶対に含めないでください。**
 
-{{
-  "persona": "（{target_user_name}さんの人柄を50文字程度で説明）",
-  "common_point": "（自分との性格スコアの共通点を30文字程度で説明）",
-  "communication_point": "（円滑な関係を築くためのポイントを50文字程度で説明）"
-}}
-"""
+    {{
+    "persona": "（{target_user_name}さんの人柄を50文字程度で説明）",
+    "common_point": "（自分との性格スコアの共通点を30文字程度で説明）",
+    "communication_point": "（円滑な関係を築くためのポイントを50文字程度で説明）"
+    }}
+    """
     ## max_retriesで指定した回数だけ、成功するまで処理を試み
     for attempt in range(max_retries):
         try:
