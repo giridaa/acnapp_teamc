@@ -170,6 +170,14 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     for attempt in range(max_retries):
         try:
             response = model.generate_content(prompt)
+
+            # --- ↓ここから4行を追加 ---
+            st.write("---  debugging: AIからの生の応答 ---") 
+            st.write(response.text) 
+            cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+            st.write(cleaned_text)
+            # --- ↑ここまで4行を追加 ---
+                
             ## Geminiが出力することがある余計な文字列を削除
             cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
             ## AIの回答（文字列）をJSON形式（辞書）に変換
