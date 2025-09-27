@@ -177,11 +177,13 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
             if all(k in persona_data for k in ["persona", "common_point", "communication_point"]):
                 return persona_data  ## 成功したら、結果の辞書を返す
                 
-        except (json.JSONDecodeError, Exception) as e:
-            ## 失敗した場合は、次の試行へ
-            print(f"Attempt {attempt + 1} failed: {e}")
+except (json.JSONDecodeError, Exception) as e:
+            st.error(f"AIからの応答処理中にエラーが発生しました（試行 {attempt + 1}回目）")
+            st.error(f"エラー内容: {e}")
+            # response変数が存在し、text属性を持つか確認
+            if 'response' in locals() and hasattr(response, 'text'):
+                st.text_area("AIからの生の応答:", response.text, height=150)
             if attempt == max_retries - 1:
-                ## すべての試行が失敗した場合
                 st.warning(f"AIによるペルソナ生成に失敗しました（試行回数: {max_retries}回）。")
                 return default_response
     
