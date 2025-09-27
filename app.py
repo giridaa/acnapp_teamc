@@ -142,10 +142,9 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
         "communication_point": "コミュニケーションのポイントの解析に失敗しました。"
     }
 
-    ## AIへの指示をJSON形式で出力
-    prompt = f"""
+prompt = f"""
 あなたは、優秀な組織人事コンサルタントです。
-以下の情報を基に、{target_user_name}さんのペルソナを分析し、指定されたJSON形式で出力してください。
+以下の情報を基に、{target_user_name}さんのペルソナを分析してください。
 
 # 分析対象者の情報
 - 氏名: {target_user_name}
@@ -155,10 +154,9 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
 # 比較対象者（自分）の情報
 - 性格スコア: {my_scores}
 
-# 出力形式のルール
-- 以下のキーを持つJSONオブジェクトのみを生成してください。
-- 各項目の値は、指定された文字数で厳密に生成してください。
-- JSON以外の文字列（例えば "```json" や "```" など）は絶対に出力に含めないでください。
+#【最重要ルール】
+- **必ず、以下のキーを持つJSONオブジェクト"だけ"を生成してください。**
+- **解説や前置き、```jsonのような追加の文字列は絶対に含めないでください。**
 
 {{
   "persona": "（{target_user_name}さんの人柄を50文字程度で説明）",
@@ -169,15 +167,7 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     ## max_retriesで指定した回数だけ、成功するまで処理を試み
     for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt)
-
-            # --- ↓ここから4行を追加 ---
-            st.write("---  debugging: AIからの生の応答 ---") 
-            st.write(response.text) 
-            cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
-            st.write(cleaned_text)
-            # --- ↑ここまで4行を追加 ---
-                
+            response = model.generate_content(prompt)    
             ## Geminiが出力することがある余計な文字列を削除
             cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
             ## AIの回答（文字列）をJSON形式（辞書）に変換
