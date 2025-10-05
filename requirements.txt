@@ -1,6 +1,0 @@
-streamlit
-pandas
-numpy
-plotly
-google-generativeai==0.7.1
-janome
