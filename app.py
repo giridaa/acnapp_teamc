@@ -1,3 +1,33 @@
+# --- デバッグここから ---
+import streamlit as st
+import google.generativeai as genai
+
+st.set_page_config(layout="wide")
+
+st.header("デバッグ情報：あなたのAPIキーで利用可能なモデルリスト")
+st.info("このリストに 'gemini-pro' が表示されているか確認してください。")
+
+try:
+    # APIキーの設定（Secretsから読み込む）
+    gemini_api_key = st.secrets["GEMINI_API_B2BAPP"]
+    genai.configure(api_key=gemini_api_key)
+
+    # 利用可能なモデルをリストアップ
+    st.write("---")
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            st.code(m.name)
+    st.write("---")
+    st.success("モデルリストの取得に成功しました。")
+
+except Exception as e:
+    st.error(f"モデルリストの取得中にエラーが発生しました: {e}")
+    st.warning("APIキーが正しく設定されているか、Secretsを確認してください。")
+
+# デバッグ表示が終わったら、ここでアプリの実行を停止
+st.stop()
+# --- デバッグここまで ---
+
 ## ライブラリインポート
 import streamlit as st
 import pandas as pd
