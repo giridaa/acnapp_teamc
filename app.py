@@ -33,14 +33,18 @@ except Exception as e:
     st.stop()
 
 
-# --- 2. Big5性格分析のロジック ---
+# --- 2. Big5性格分析 + ACN独自性格のロジック ---
+##ここから修正
 PERSONALITY_WORDS = {
     '外向性': ['みんな', '楽しい', 'パーティー', '会う', '話す', '最高', '！', '（笑）'],
     '協調性': ['協力', '一緒', '手伝う', 'ありがとう', 'お願いします', '感謝', '私たち'],
     '誠実性': ['計画', '確実', 'べき', '重要', '責任', 'しっかり', '管理', '報告'],
     '神経症傾向': ['心配', '不安', '問題', '難しい', '大変', 'リスク', 'すみません'],
-    '開放性': ['新しい', 'アイデア', '面白い', '試す', '想像', 'わくわく', '？', 'なるほど']
+    '開放性': ['新しい', 'アイデア', '面白い', '試す', '想像', 'わくわく', '？', 'なるほど'],
+    '短気': ['まだ', '遅い', 'おそい', 'いそげ', '急げ', 'いそぐ', '急ぐ', 'やば', '早く'],
+    'パワハラ': ['まじかよ', 'やれ', 'ふざけるな']
 }
+##修正ここまで
 
 ## チャットのテキストをJanomeで単語に切り分け
 def analyze_personality(text):
@@ -133,7 +137,7 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     Gemini APIを呼び出してペルソナを生成する関数（リトライ機能とJSONパース機能付き）
     """
     ## Geminiのモデルを指定
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
     
     ## 解析に失敗した場合に表示する内容をあらかじめ定義
     default_response = {
@@ -191,38 +195,52 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     return default_response
 
 # --- 4. Streamlitアプリケーションの画面 ---
-st.title('Teamsチャット 性格分析アプリ 💬')
-st.write('アサイン予定のPJメンバーとあなたのチャットデータ(CSV)をアップロードすると、性格傾向を分析し、PJメンバーとの「性格マッチ度」を診断します。')
+st.title('アサイン検討PJ 性格分析アプリ 💬')
+st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、性格傾向を分析し、PJメンバーとの「性格マッチ度」を診断します。')
 st.write('---')
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 ## CSVアップローダー
 with col1:
-    st.subheader("PJメンバーのチャット")
-    team_files = st.file_uploader(
+    st.subheader("👥PJメンバーのTeamsチャット")
+    # アップロードされたファイルを受け取る変数を変更
+    chat_files = st.file_uploader(
         "PJのチャットCSVを選択してください",
         type="csv",
         accept_multiple_files=True,
-        key="team_uploader"
+        key="chat_uploader"
     )
 
 with col2:
-    st.subheader("自分のチャット")
+    st.subheader("👥PJメンバーのMTG会話")
+    # アップロードされたファイルを受け取る変数を変更
+    transcript_files = st.file_uploader(
+        "音声からテキスト変換したCSVを選択してください",
+        type="csv",
+        accept_multiple_files=True,
+        key="transcript_uploader"
+    )
+
+with col3:
+    st.subheader("👤自分のTeamsチャット")
     my_file = st.file_uploader(
         "自分のチャットのCSVを選択してください",
         type="csv",
         accept_multiple_files=False,
-        key="my_uploader"
+        key="mychat_uploader"
     )
 
 st.write('---')
 
-if team_files and my_file:
+# チームメンバーのファイル（チャット or MTG）がどちらか一方でもアップロードされたら処理に進むように条件を変更
+if (chat_files or transcript_files) and my_file:
     try:
-        ## データ読み込み処理
         team_dfs = []
-        for file in team_files:
+        # chat_files と transcript_files を結合して一つのリストとして処理
+        all_team_files = chat_files + transcript_files
+        
+        for file in all_team_files:
             file.seek(0)
             try:
                 df_single = pd.read_csv(file, encoding='shift_jis')
@@ -230,7 +248,11 @@ if team_files and my_file:
                 file.seek(0)
                 df_single = pd.read_csv(file, encoding='utf-8')
             team_dfs.append(df_single)
-        team_df = pd.concat(team_dfs, ignore_index=True)
+        
+        # team_dfsが空でない場合のみconcatを実行
+        team_df = pd.DataFrame()
+        if team_dfs:
+            team_df = pd.concat(team_dfs, ignore_index=True)
 
         my_file.seek(0)
         try:
@@ -252,7 +274,7 @@ if team_files and my_file:
         if 'user' not in df.columns or 'message' not in df.columns:
             st.error("エラー: CSVファイルには 'user' と 'message' の列が必要です。")
         else:
-            st.success(f'{len(team_files) + 1}個のファイルの読み込みに成功しました！')
+            st.success(f'{len(all_team_files) + 1}個のファイルの読み込みに成功しました！')
             
             with st.expander("読み込んだデータを確認する"):
                 st.write("▼ チームメンバーのデータ（先頭5行）")
