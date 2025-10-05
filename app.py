@@ -1,13 +1,38 @@
-## ライブラリインポート
+# ====================================================================
+#  Streamlit Cloud 環境問題への最終対策コード
+# ====================================================================
+import subprocess
+import sys
+import os
 import streamlit as st
+
+# Streamlit Cloud上で実行されている場合のみ、ライブラリの強制アップデートを実行
+# (ローカル環境では不要なため)
+if "STREAMLIT_SHARING_MODE" in os.environ:
+    try:
+        # pipを使ってgoogle-generativeaiライブラリを最新版に強制的にアップグレード
+        subprocess.check_call([
+            sys.executable, "-m", "pip", "install", "--upgrade", "google-generativeai"
+        ])
+        # 更新が完了したことをトースト通知で知らせる（オプション）
+        st.toast("✅ Geminiライブラリを最新版に更新しました。")
+    except Exception as e:
+        # もし失敗した場合は、エラーを表示してアプリを停止
+        st.error(f"ライブラリの強制アップデートに失敗しました: {e}")
+        st.stop()
+# ====================================================================
+#  対策コードここまで
+# ====================================================================
+
+## ライブラリインポート
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import google.generativeai as genai
-import os
 import json
 from io import StringIO
 from janome.tokenizer import Tokenizer
+
 
 # --- 0. Gemini APIキーの設定 ---
 # Streamlitのシークレット管理機能からAPIキーを取得
