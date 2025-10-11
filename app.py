@@ -325,7 +325,7 @@ def get_recommendation_color(recommendation_str):
 ##修正ここまで
 
 # --- 4. Streamlitアプリケーションの画面 ---
-st.title('アサイン検討PJ 性格分析アプリ 💬')
+st.title('📈 アサイン検討PJの分析アプリ')
 st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、チームの雰囲気やメンバーの性格傾向を分析し、PJとあなたのマッチングを診断します。')
 st.write('---')
 
@@ -335,7 +335,7 @@ with col1:
     chat_files = st.file_uploader("PJのチャットCSVを選択", type="csv", accept_multiple_files=True, key="chat_uploader")
 with col2:
     st.subheader("👥PJメンバーのMTG会話")
-    transcript_files = st.file_uploader("音声からテキスト変換したCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
+    transcript_files = st.file_uploader("音声テキストのCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
 with col3:
     st.subheader("👤自分のTeamsチャット")
     my_file = st.file_uploader("自分のチャットのCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
@@ -432,7 +432,7 @@ if (chat_files or transcript_files) and my_file:
                     st.subheader('📈 自分とPJメンバーの性格比較チャート')
                     st.plotly_chart(create_multi_user_radar_chart(result_df, my_name), use_container_width=True)
                     st.write('---')
-                    st.subheader('🤖 PJメンバーのペルソナ分析')
+                    st.subheader('😐 PJメンバーのペルソナ分析')
                     other_users_df = result_df[result_df['ユーザー'] != my_name].sort_values('自分との性格マッチ度 (%)', ascending=False)
                     with st.spinner('AIが各メンバーのペルソナを生成中です...'):
                         user_list = list(other_users_df.iterrows())
