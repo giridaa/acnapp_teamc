@@ -162,7 +162,7 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     Gemini APIを呼び出してペルソナを生成する関数（リトライ機能とJSONパース機能付き）
     """
     ## Geminiのモデルを指定
-    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
     
     ## 解析に失敗した場合に表示する内容をあらかじめ定義
     default_response = {
