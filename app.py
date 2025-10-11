@@ -325,7 +325,7 @@ def get_recommendation_color(recommendation_str):
 ##修正ここまで
 
 # --- 4. Streamlitアプリケーションの画面 ---
-st.title('📈 アサイン検討PJの分析アプリ')
+st.title('📊 アサイン検討PJの分析アプリ')
 st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、チームの雰囲気やメンバーの性格傾向を分析し、PJとあなたのマッチングを診断します。')
 st.write('---')
 
