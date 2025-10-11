@@ -405,7 +405,7 @@ if (chat_files or transcript_files) and my_file:
             # --- 性格マッチ度分析 ---
             if not df.empty and 'user' in df.columns and df['user'].nunique() > 1:
                 df['message'] = df['message'].fillna('')
-                user_texts = df.groupby('user')['message'].apply(' '.join').reset_index()
+                user_texts = df.groupby('user')['message'].agg(' '.join).reset_index()
                 results = []
                 with st.spinner('性格スコアを分析中です...'):
                     for _, row in user_texts.iterrows():
