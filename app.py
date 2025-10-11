@@ -162,7 +162,7 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     Gemini APIを呼び出してペルソナを生成する関数（リトライ機能とJSONパース機能付き）
     """
     ## Geminiのモデルを指定
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
     
     ## 解析に失敗した場合に表示する内容をあらかじめ定義
     default_response = {
@@ -219,6 +219,68 @@ def generate_persona_with_retry(target_user_name, target_user_scores, target_use
     
     return default_response
 
+##ここから修正
+# --- 3-2. Gemini APIを用いたチーム雰囲気分析関数 ---
+def generate_team_atmosphere(text, max_retries=3):
+    """
+    MTGの会話テキストからチームの雰囲気を分析する関数
+    """
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    
+    # 解析失敗時のデフォルト応答
+    default_response = {
+        "atmosphere": "分析失敗",
+        "description": "AIによる分析に失敗しました。テキストが短すぎるか、内容が不適切でないか確認してください。",
+        "weather": "霧"
+    }
+
+    # 天気の選択肢を定義
+    weather_options = ['快晴', '晴れ', '薄曇り', '曇り', '雨', '雪', '雷', '霧', '暴風']
+
+    prompt = f"""
+    あなたは、経験豊富な組織開発コンサルタントです。
+    以下のオンラインミーティングの会話テキスト全体から、チーム全体の雰囲気を分析してください。
+
+    # 分析対象の会話テキスト（抜粋）
+    {text[:4000]}
+
+    #【最重要ルール】
+    - **必ず、以下のキーを持つJSONオブジェクト"だけ"を生成してください。**
+    - **解説や前置き、```jsonのような追加の文字列は絶対に含めないでください。**
+    - **"weather"の値は、必ず以下のリストから最も適切だと思うものを1つだけ選んでください。**
+      {weather_options}
+
+    {{
+      "atmosphere": "（チームの雰囲気を15文字程度で表現）",
+      "description": "（なぜその雰囲気だと判断したか、理由を30文字程度で説明）",
+      "weather": "（上記のリストから選択した天気）"
+    }}
+    """
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(prompt)
+            cleaned_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+            atmosphere_data = json.loads(cleaned_text)
+            
+            if all(k in atmosphere_data for k in ["atmosphere", "description", "weather"]):
+                return atmosphere_data # 成功
+        except (json.JSONDecodeError, Exception) as e:
+            st.error(f"チーム雰囲気のAI分析中にエラーが発生しました（試行 {attempt + 1}回目）: {e}")
+            if attempt == max_retries - 1:
+                st.warning(f"AIによるチーム雰囲気の分析に失敗しました。")
+                return default_response
+    
+    return default_response
+
+def get_weather_icon(weather_str):
+    """ 天気の文字列に対応する絵文字を返す """
+    weather_map = {
+        '快晴': '☀️', '晴れ': '晴️', '薄曇り': '🌥️', '曇り': '☁️',
+        '雨': '🌧️', '雪': '❄️', '雷': '⚡️', '霧': '🌫️', '暴風': '🌪️'
+    }
+    return weather_map.get(weather_str, '❓') # 見つからない場合は「?」を返す
+##修正ここまで
+
 # --- 4. Streamlitアプリケーションの画面 ---
 st.title('アサイン検討PJ 性格分析アプリ 💬')
 st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、性格傾向を分析し、PJメンバーとの「性格マッチ度」を診断します。')
@@ -261,30 +323,52 @@ st.write('---')
 # チームメンバーのファイル（チャット or MTG）がどちらか一方でもアップロードされたら処理に進むように条件を変更
 if (chat_files or transcript_files) and my_file:
     try:
-        team_dfs = []
-        # chat_files と transcript_files を結合して一つのリストとして処理
-        all_team_files = chat_files + transcript_files
-        
-        for file in all_team_files:
-            file.seek(0)
-            try:
-                df_single = pd.read_csv(file, encoding='shift_jis')
-            except UnicodeDecodeError:
+##ここから修正
+        # --- ファイルの読み込み処理 ---
+        # 性格分析用のチャットデータを読み込む
+        team_chat_dfs = []
+        if chat_files:
+            for file in chat_files:
                 file.seek(0)
-                df_single = pd.read_csv(file, encoding='utf-8')
-            team_dfs.append(df_single)
+                try:
+                    df_single = pd.read_csv(file, encoding='shift_jis')
+                except UnicodeDecodeError:
+                    file.seek(0)
+                    df_single = pd.read_csv(file, encoding='utf-8')
+                team_chat_dfs.append(df_single)
         
-        # team_dfsが空でない場合のみconcatを実行
-        team_df = pd.DataFrame()
-        if team_dfs:
-            team_df = pd.concat(team_dfs, ignore_index=True)
+        team_chat_df = pd.DataFrame()
+        if team_chat_dfs:
+            team_chat_df = pd.concat(team_chat_dfs, ignore_index=True)
 
+        # チーム雰囲気分析用のMTG会話データを読み込む
+        team_transcript_dfs = []
+        transcript_text = ""
+        if transcript_files:
+            for file in transcript_files:
+                file.seek(0)
+                try:
+                    df_single = pd.read_csv(file, encoding='shift_jis')
+                except UnicodeDecodeError:
+                    file.seek(0)
+                    df_single = pd.read_csv(file, encoding='utf-8')
+                team_transcript_dfs.append(df_single)
+        
+        team_transcript_df = pd.DataFrame()
+        if team_transcript_dfs:
+            team_transcript_df = pd.concat(team_transcript_dfs, ignore_index=True)
+            if 'message' in team_transcript_df.columns:
+                # 全ての発言を一つのテキストに結合
+                transcript_text = ' '.join(team_transcript_df['message'].fillna('').astype(str))
+
+        # 自分のデータを読み込む
         my_file.seek(0)
         try:
             my_df = pd.read_csv(my_file, encoding='shift_jis')
         except UnicodeDecodeError:
             my_file.seek(0)
             my_df = pd.read_csv(my_file, encoding='utf-8')
+##修正ここまで
 
         my_name = ""
         if 'user' in my_df.columns and not my_df.empty:
@@ -294,23 +378,59 @@ if (chat_files or transcript_files) and my_file:
             st.error("あなたのCSVファイルに 'user' 列が存在しないか、データが空です。")
             st.stop()
         
-        df = pd.concat([team_df, my_df], ignore_index=True)
+        # 性格分析にはチャットデータと自分のデータを結合
+        df = pd.concat([team_chat_df, my_df], ignore_index=True)
         
         if 'user' not in df.columns or 'message' not in df.columns:
-            st.error("エラー: CSVファイルには 'user' と 'message' の列が必要です。")
+            # チャットデータがない場合は警告にとどめる
+            if not chat_files:
+                 st.warning("性格分析の対象となるPJメンバーのチャットファイルがアップロードされていません。")
+            else:
+                 st.error("エラー: チャットCSVファイルには 'user' と 'message' の列が必要です。")
         else:
-            st.success(f'{len(all_team_files) + 1}個のファイルの読み込みに成功しました！')
+            st.success(f'{len(chat_files) + len(transcript_files) + 1}個のファイルの読み込みに成功しました！')
             
             with st.expander("読み込んだデータを確認する"):
-                st.write("▼ チームメンバーのデータ（先頭5行）")
-                st.dataframe(team_df.head())
+                if not team_chat_df.empty:
+                    st.write("▼ チームメンバーのチャットデータ（先頭5行）")
+                    st.dataframe(team_chat_df.head())
+                if not team_transcript_df.empty:
+                    st.write("▼ チームメンバーのMTG会話データ（先頭5行）")
+                    st.dataframe(team_transcript_df.head())
                 st.write("▼ あなたのデータ（先頭5行）")
                 st.dataframe(my_df.head())
 
-            ## ボタンを押して性格マッチ度分析を実行
-            if st.button('PJメンバーとの性格マッチングを確認'):
+        ## ボタンを押して性格マッチ度分析を実行
+        if st.button('分析を実行する'):
+            st.write('---')
+            st.header('分析結果')
+
+##ここから修正
+            # --- チームの雰囲気分析（MTGデータがある場合のみ実行）---
+            if transcript_text:
+                st.subheader('🗣️ MTGの会話から分析したチームの雰囲気')
+                with st.spinner('AIがチームの雰囲気を分析中です...'):
+                    atmosphere_result = generate_team_atmosphere(transcript_text)
+                    
+                    # 天気をアイコンで表示
+                    weather_str = atmosphere_result.get('weather', '霧')
+                    weather_icon = get_weather_icon(weather_str)
+                    
+                    # 結果を3カラムで表示
+                    col_atm1, col_atm2, col_atm3 = st.columns(3)
+                    with col_atm1:
+                        st.metric(label="現在のチームの天気", value=weather_str, delta=weather_icon)
+                    with col_atm2:
+                        st.markdown("**チームの雰囲気**")
+                        st.info(f"{atmosphere_result.get('atmosphere', 'N/A')}")
+                    with col_atm3:
+                        st.markdown("**雰囲気の理由**")
+                        st.success(f"{atmosphere_result.get('description', 'N/A')}")
                 st.write('---')
-                st.header('分析結果')
+##修正ここまで
+            
+            # --- 性格マッチ度分析（チャットデータがある場合のみ実行）---
+            if not df.empty and 'user' in df.columns and df['user'].nunique() > 1:
                 df['message'] = df['message'].fillna('')
                 user_texts = df.groupby('user')['message'].apply(' '.join).reset_index()
                 
@@ -429,6 +549,8 @@ if (chat_files or transcript_files) and my_file:
 
                                     st.markdown(f"**コミュニケーションのポイント**:")
                                     st.warning(persona_dict.get('communication_point', '解析できませんでした。'))
+            else:
+                 st.info("性格分析を行うには、PJメンバーのチャットファイルと自分のチャットファイルを両方アップロードしてください。")
 
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
