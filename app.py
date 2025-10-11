@@ -225,7 +225,7 @@ def generate_team_atmosphere(text, max_retries=3):
     """
     MTGの会話テキストからチームの雰囲気を分析する関数
     """
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
     
     # 解析失敗時のデフォルト応答
     default_response = {
