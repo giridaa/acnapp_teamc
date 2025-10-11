@@ -251,7 +251,7 @@ def generate_team_atmosphere(text, max_retries=3):
       {weather_options}
 
     {{
-      "atmosphere": "（チームの雰囲気を15文字程度で表現）",
+      "atmosphere": "（チームの雰囲気を15文字程度で表現。例：風通しがよく活気あるチーム、緊張感が多く高ストレスなチーム、など）",
       "description": "（なぜその雰囲気だと判断したか、理由を30文字程度で説明）",
       "weather": "（上記のリストから選択した天気）"
     }}
@@ -283,7 +283,7 @@ def get_weather_icon(weather_str):
 
 # --- 4. Streamlitアプリケーションの画面 ---
 st.title('アサイン検討PJ 性格分析アプリ 💬')
-st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、性格傾向を分析し、PJメンバーとの「性格マッチ度」を診断します。')
+st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、チームの雰囲気やメンバーの性格傾向を分析し、PJとあなたのマッチングを診断します。')
 st.write('---')
 
 col1, col2, col3 = st.columns(3)
@@ -408,7 +408,7 @@ if (chat_files or transcript_files) and my_file:
 ##ここから修正
             # --- チームの雰囲気分析（MTGデータがある場合のみ実行）---
             if transcript_text:
-                st.subheader('🗣️ MTGの会話から分析したチームの雰囲気')
+                st.subheader('🗣️ PJチームの雰囲気')
                 with st.spinner('AIがチームの雰囲気を分析中です...'):
                     atmosphere_result = generate_team_atmosphere(transcript_text)
                     
