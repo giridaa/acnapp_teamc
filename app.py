@@ -331,13 +331,13 @@ st.write('---')
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.subheader("👥PJメンバーのTeamsチャット")
+    st.subheader("🗫 PJメンバーのTeamsチャット")
     chat_files = st.file_uploader("PJのチャットCSVを選択", type="csv", accept_multiple_files=True, key="chat_uploader")
 with col2:
-    st.subheader("👥PJメンバーのMTG会話")
+    st.subheader("🗣 PJメンバーのMTG会話")
     transcript_files = st.file_uploader("音声テキストのCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
 with col3:
-    st.subheader("👤自分のTeamsチャット")
+    st.subheader("🗨 自分のTeamsチャット")
     my_file = st.file_uploader("自分のチャットのCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
 st.write('---')
 
@@ -392,7 +392,7 @@ if (chat_files or transcript_files) and my_file:
 
             # --- チームの雰囲気分析 ---
             if transcript_text:
-                st.subheader('🗣️ PJチームの雰囲気')
+                st.subheader('🤔 PJチームの雰囲気')
                 with st.spinner('AIがチームの雰囲気を分析中です...'):
                     atmosphere_result = generate_team_atmosphere(transcript_text)
                     weather_str = atmosphere_result.get('weather', '霧')
@@ -426,13 +426,13 @@ if (chat_files or transcript_files) and my_file:
                         for _, row in result_df.iterrows()
                     ]
                     result_df['自分との性格マッチ度 (%)'] = match_percentages
-                    st.subheader(f'👤 {my_name} とPJメンバーの性格マッチ度')
+                    st.subheader(f'🫡 {my_name} とPJメンバーの性格マッチ度')
                     st.dataframe(result_df[['ユーザー', '最も強い性格傾向', '発言数', '自分との性格マッチ度 (%)']].sort_values('自分との性格マッチ度 (%)', ascending=False))
                     st.write('---')
                     st.subheader('📈 自分とPJメンバーの性格比較チャート')
                     st.plotly_chart(create_multi_user_radar_chart(result_df, my_name), use_container_width=True)
                     st.write('---')
-                    st.subheader('😐 PJメンバーのペルソナ分析')
+                    st.subheader('🎭 PJメンバーのペルソナ分析')
                     other_users_df = result_df[result_df['ユーザー'] != my_name].sort_values('自分との性格マッチ度 (%)', ascending=False)
                     with st.spinner('AIが各メンバーのペルソナを生成中です...'):
                         user_list = list(other_users_df.iterrows())
@@ -459,7 +459,7 @@ if (chat_files or transcript_files) and my_file:
             ##ここから修正
             # --- 総合評価 ---
             st.write('---')
-            st.header('📊 総合評価')
+            st.header('👉 総合評価')
 
             # 雰囲気分析と性格分析の両方のデータが揃っているか確認
             if atmosphere_result and not result_df.empty:
