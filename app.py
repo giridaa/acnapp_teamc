@@ -632,7 +632,9 @@ if (chat_files or transcript_files or work_files) and my_file:
                     ]
                     result_df['自分との性格マッチ度 (%)'] = match_percentages
                     st.subheader(f'🫡 {my_name} とPJメンバーの性格マッチ度')
-                    st.dataframe(result_df[['ユーザー', '最も強い性格傾向', '発言数', '自分との性格マッチ度 (%)']].sort_values('自分との性格マッチ度 (%)', ascending=False))
+                    # 自分以外のユーザーのデータのみを抽出して表示する
+                    display_df = result_df[result_df['ユーザー'] != my_name]
+                    st.dataframe(display_df[['ユーザー', '最も強い性格傾向', '発言数', '自分との性格マッチ度 (%)']].sort_values('自分との性格マッチ度 (%)', ascending=False))
                     st.write('---')
                     st.subheader('📈 自分とPJメンバーの性格比較チャート')
                     st.plotly_chart(create_multi_user_radar_chart(result_df, my_name), use_container_width=True)
