@@ -546,15 +546,20 @@ if (chat_files or transcript_files or work_files) and my_file:
             team_transcript_dfs = []
             for file in transcript_files:
                 file.seek(0)
-                try: df_single = pd.read_csv(file, encoding='shift_jis')
+                try:
+                    # header=None を追加し、1行目をヘッダーとして扱わないようにする
+                    df_single = pd.read_csv(file, header=None, encoding='shift_jis')
                 except UnicodeDecodeError:
                     file.seek(0)
-                    df_single = pd.read_csv(file, encoding='utf-8')
+                    # こちらにも header=None を追加
+                    df_single = pd.read_csv(file, header=None, encoding='utf-8')
                 team_transcript_dfs.append(df_single)
+                
             if team_transcript_dfs:
                 team_transcript_df = pd.concat(team_transcript_dfs, ignore_index=True)
-                if 'message' in team_transcript_df.columns:
-                    transcript_text = ' '.join(team_transcript_df['message'].fillna('').astype(str))
+                # 'message'列ではなく、0番目（最初）の列を指定してテキストを抽出する
+                if not team_transcript_df.empty and 0 in team_transcript_df.columns:
+                    transcript_text = ' '.join(team_transcript_df[0].fillna('').astype(str))
 
         # (新規追加) 勤怠データの読み込み
         all_member_work_dfs = []
@@ -579,7 +584,7 @@ if (chat_files or transcript_files or work_files) and my_file:
 
         if 'user' in my_df.columns and not my_df.empty:
             my_name = my_df['user'].iloc[0]
-            st.info(f"あなたのユーザー名を「{my_name}」として認識しました。")
+            # st.info(f"あなたのユーザー名を「{my_name}」として認識しました。")
         else:
             st.error("あなたのCSVファイルに 'user' 列が存在しないか、データが空です。"); st.stop()
         
