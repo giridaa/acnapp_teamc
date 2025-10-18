@@ -433,7 +433,7 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
     """
     全ての分析結果を統合し、プロジェクトへの参加推奨度を評価する関数
     """
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
     
     # AIに渡すために、これまでの分析結果を要約します
     team_atmosphere = atmosphere_result.get('atmosphere', '不明')
