@@ -428,11 +428,12 @@ def get_weather_icon(weather_str):
     return weather_map.get(weather_str, '❓')
 
 # --- 3-3. Gemini APIを用いた総合評価関数 ---
-def generate_overall_evaluation(atmosphere_result, result_df, my_name, max_retries=3):
+# ★修正1：勤怠分析の結果を受け取るための引数 `work_analysis_result` を追加
+def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_result, my_name, max_retries=3):
     """
     全ての分析結果を統合し、プロジェクトへの参加推奨度を評価する関数
     """
-    model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    model = genai.GenerativeModel('gemini-1.5-flash-latest')
     
     # AIに渡すために、これまでの分析結果を要約します
     team_atmosphere = atmosphere_result.get('atmosphere', '不明')
@@ -442,10 +443,15 @@ def generate_overall_evaluation(atmosphere_result, result_df, my_name, max_retri
     my_dominant_personality = my_data['最も強い性格傾向'].iloc[0] if not my_data.empty else '不明'
     
     other_members_data = result_df[result_df['ユーザー'] != my_name]
-    # `mean()`で平均値を計算。データがない場合は0とします。
     average_match_score = other_members_data['自分との性格マッチ度 (%)'].mean() if not other_members_data.empty else 0
-    # `value_counts()`で性格タイプの人数を数え、`to_dict()`で辞書に変換します
     team_composition = other_members_data['最も強い性格傾向'].value_counts().to_dict()
+
+    # ★修正2：勤怠分析の結果をAIに渡すための要約文を作成
+    work_environment_summary = "勤怠データがないため不明"
+    if work_analysis_result:
+        trend = work_analysis_result.get('trend', '不明')
+        reason = work_analysis_result.get('reason', '不明')
+        work_environment_summary = f"残業評価は「{trend}」です({reason})。"
 
     # 解析失敗時のデフォルト応答
     default_response = {
@@ -456,6 +462,7 @@ def generate_overall_evaluation(atmosphere_result, result_df, my_name, max_retri
     # AIに選ばせる選択肢を定義
     recommendation_options = ["強く推奨する", "推奨する", "自己判断に委ねる", "推奨しない"]
 
+    # ★修正3：プロンプトに「チームの労働環境」の項目を追加
     prompt = f"""
     あなたは、超一流の組織人事コンサルタント兼キャリアアドバイザーです。
     以下の多角的な分析結果を基に、ユーザー（{my_name}さん）がこのプロジェクトに参加すべきかどうか、総合的な評価とアドバイスをしてください。
@@ -468,6 +475,9 @@ def generate_overall_evaluation(atmosphere_result, result_df, my_name, max_retri
        - ユーザーの最も強い性格傾向: {my_dominant_personality}
        - チームメンバーとの平均性格マッチ度: {average_match_score:.1f}%
        - チームメンバーの性格傾向の内訳: {team_composition}
+    
+    3. **チームの労働環境**:
+       - {work_environment_summary}
 
     #【最重要ルール】
     - **必ず、以下のキーを持つJSONオブジェクト"だけ"を生成してください。**
@@ -594,6 +604,7 @@ if (chat_files or transcript_files or work_files) and my_file:
         if st.button('分析を実行する'):
             st.write('---'); st.header('分析結果')
             atmosphere_result, result_df = None, pd.DataFrame() # 結果を保存する変数を初期化
+            work_analysis_result = {} # ★修正4：勤怠分析の結果を格納する辞書を初期化
 
             # --- チームの雰囲気分析 ---
             if transcript_text:
@@ -663,7 +674,7 @@ if (chat_files or transcript_files or work_files) and my_file:
             else:
                  st.info("性格分析を行うには、PJメンバーのチャットファイルと自分のチャットファイルを両方アップロードしてください。")
 
-            # --- (新規追加) 勤怠データ分析 ---
+            # --- 勤怠データ分析 ---
             if all_member_work_dfs:
                 st.write('---')
                 st.subheader('🏢 PJチームの労働環境')
@@ -686,32 +697,38 @@ if (chat_files or transcript_files or work_files) and my_file:
 
                     # プロジェクト全体の評価
                     num_individuals = len(individual_results)
-                    avg_weekly_ot = sum(res['raw']['avg_overtime_hours'] for res in individual_results) / num_individuals
-                    avg_overtime_days = sum(res['raw']['num_overtime_days'] for res in individual_results) / num_individuals
-                    avg_inadequate_break = sum(res['raw']['num_inadequate_break_days'] for res in individual_results) / num_individuals
+                    if num_individuals > 0:
+                        avg_weekly_ot = sum(res['raw']['avg_overtime_hours'] for res in individual_results) / num_individuals
+                        avg_overtime_days = sum(res['raw']['num_overtime_days'] for res in individual_results) / num_individuals
+                        avg_inadequate_break = sum(res['raw']['num_inadequate_break_days'] for res in individual_results) / num_individuals
 
-                    project_overtime_trend = "通常"
-                    project_trend_reason = "プロジェクト全体で基準の範囲内です"
-                    is_project_dangerous = any(res['raw']['is_dangerous'] for res in individual_results)
-                    
-                    if is_project_dangerous:
-                        project_overtime_trend = "危険な労働環境"
-                        project_trend_reason = "個人評価に「過重労働傾向あり」のメンバーが含まれています"
-                    elif avg_weekly_ot >= 5:
-                        project_overtime_trend = "残業傾向あり"
-                        project_trend_reason = "プロジェクトの週平均残業時間が5時間を超えています"
-                    
-                    st.info(f"**プロジェクト全体の残業評価: {project_overtime_trend}** ({project_trend_reason})")
-                    
-                    # チャート表示
-                    chart_df = generate_chart_data(user_dfs_for_chart)
-                    if not chart_df.empty:
-                        st.line_chart(chart_df)
+                        project_overtime_trend = "通常"
+                        project_trend_reason = "プロジェクト全体で基準の範囲内です"
+                        is_project_dangerous = any(res['raw']['is_dangerous'] for res in individual_results)
+                        
+                        if is_project_dangerous:
+                            project_overtime_trend = "危険な労働環境"
+                            project_trend_reason = "個人評価に「過重労働傾向あり」のメンバーが含まれています"
+                        elif avg_weekly_ot >= 5:
+                            project_overtime_trend = "残業傾向あり"
+                            project_trend_reason = "プロジェクトの週平均残業時間が5時間を超えています"
+                        
+                        st.info(f"**プロジェクト全体の残業評価: {project_overtime_trend}** ({project_trend_reason})")
+                        
+                        # ★修正5：勤怠分析の結果を総合評価用に保存
+                        work_analysis_result = {'trend': project_overtime_trend, 'reason': project_trend_reason}
 
-                    # 個人別評価の表示
-                    for res in individual_results:
-                        with st.expander(f"**{res['user']}さん** の勤怠状況詳細"):
-                            st.table(pd.DataFrame([res['display']]))
+                        # チャート表示
+                        chart_df = generate_chart_data(user_dfs_for_chart)
+                        if not chart_df.empty:
+                            st.line_chart(chart_df)
+
+                        # 個人別評価の表示
+                        for res in individual_results:
+                            with st.expander(f"**{res['user']}さん** の勤怠状況詳細"):
+                                st.table(pd.DataFrame([res['display']]))
+                    else:
+                        st.warning("勤怠データの分析対象ユーザーがいませんでした。")
 
             # --- 総合評価 ---
             st.write('---')
@@ -720,7 +737,8 @@ if (chat_files or transcript_files or work_files) and my_file:
             # 雰囲気分析と性格分析の両方のデータが揃っているか確認
             if atmosphere_result and not result_df.empty:
                 with st.spinner('AIがすべての結果を統合し、最終評価を生成中です...'):
-                    evaluation = generate_overall_evaluation(atmosphere_result, result_df, my_name)
+                    # ★修正6：勤怠分析の結果を引数に追加して総合評価関数を呼び出す
+                    evaluation = generate_overall_evaluation(atmosphere_result, result_df, work_analysis_result, my_name)
                     recommendation = evaluation.get('recommendation', '評価不能')
                     reason = evaluation.get('reason', '理由の取得に失敗しました。')
                     color = get_recommendation_color(recommendation)
