@@ -58,7 +58,7 @@ except Exception as e:
     st.stop()
 
 
-# --- (新規追加) 勤怠データ分析ロジック ---
+# --- 勤怠データ分析ロジック ---
 def evaluate_work_environment(df):
     """個人の勤怠データを分析し、整形済み結果と生データを返す"""
     # 1. データ準備
@@ -260,7 +260,7 @@ PERSONALITY_WORDS = {
 def analyze_personality(text):
     if not isinstance(text, str) or not text.strip():
         return {p: 0 for p in PERSONALITY_WORDS.keys()}
-    # ↓ Janomeの処理に置き換え
+    
     words = [token.surface for token in janome_tokenizer.tokenize(text)]
     scores = {p: 0 for p in PERSONALITY_WORDS.keys()}
     for personality, keywords in PERSONALITY_WORDS.items():
@@ -428,14 +428,13 @@ def get_weather_icon(weather_str):
     return weather_map.get(weather_str, '❓')
 
 # --- 3-3. Gemini APIを用いた総合評価関数 ---
-# ★修正1：勤怠分析の結果を受け取るための引数 `work_analysis_result` を追加
 def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_result, my_name, max_retries=3):
     """
     全ての分析結果を統合し、プロジェクトへの参加推奨度を評価する関数
     """
     model = genai.GenerativeModel('gemini-2.5-flash-lite')
     
-    # AIに渡すために、これまでの分析結果を要約します
+    # AIに渡すために、これまでの分析結果を要約
     team_atmosphere = atmosphere_result.get('atmosphere', '不明')
     team_weather = atmosphere_result.get('weather', '不明')
     
@@ -446,7 +445,7 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
     average_match_score = other_members_data['自分との性格マッチ度 (%)'].mean() if not other_members_data.empty else 0
     team_composition = other_members_data['最も強い性格傾向'].value_counts().to_dict()
 
-    # ★修正2：勤怠分析の結果をAIに渡すための要約文を作成
+    # 勤怠分析の結果をAIに渡すための要約文を作成
     work_environment_summary = "勤怠データがないため不明"
     if work_analysis_result:
         trend = work_analysis_result.get('trend', '不明')
@@ -461,8 +460,6 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
 
     # AIに選ばせる選択肢を定義
     recommendation_options = ["🤩 強く推奨する 😍", "🫠 推奨する 😗", "🙄 自己判断に委ねる 😑", "😱 推奨しない 🤮"]
-
-    # ★修正3：プロンプトに「チームの労働環境」の項目を追加
     prompt = f"""
     あなたは、超一流の組織人事コンサルタント兼キャリアアドバイザーです。
     以下の多角的な分析結果を基に、ユーザー（{my_name}さん）がこのプロジェクトに参加すべきかどうか、総合的な評価とアドバイスをしてください。
@@ -571,7 +568,7 @@ if (chat_files or transcript_files or work_files) and my_file:
                 if not team_transcript_df.empty and 0 in team_transcript_df.columns:
                     transcript_text = ' '.join(team_transcript_df[0].fillna('').astype(str))
 
-        # (新規追加) 勤怠データの読み込み
+        # 勤怠データの読み込み
         all_member_work_dfs = []
         if work_files:
             for file in work_files:
@@ -604,7 +601,7 @@ if (chat_files or transcript_files or work_files) and my_file:
         if st.button('分析を実行する'):
             st.write('---'); st.header('分析結果')
             atmosphere_result, result_df = None, pd.DataFrame() # 結果を保存する変数を初期化
-            work_analysis_result = {} # ★修正4：勤怠分析の結果を格納する辞書を初期化
+            work_analysis_result = {} # 勤怠分析の結果を格納する辞書を初期化
 
             # --- チームの雰囲気分析 ---
             if transcript_text:
@@ -715,7 +712,7 @@ if (chat_files or transcript_files or work_files) and my_file:
                         
                         st.info(f"**プロジェクト全体の残業評価: {project_overtime_trend}** ({project_trend_reason})")
                         
-                        # ★修正5：勤怠分析の結果を総合評価用に保存
+                        # 勤怠分析の結果を総合評価用に保存
                         work_analysis_result = {'trend': project_overtime_trend, 'reason': project_trend_reason}
 
                         # チャート表示
@@ -732,12 +729,12 @@ if (chat_files or transcript_files or work_files) and my_file:
 
             # --- 総合評価 ---
             st.write('---')
-            st.header('👉 総合評価')
+            st.header('🫵 総合評価')
 
             # 雰囲気分析と性格分析の両方のデータが揃っているか確認
             if atmosphere_result and not result_df.empty:
                 with st.spinner('AIがすべての結果を統合し、最終評価を生成中です...'):
-                    # ★修正6：勤怠分析の結果を引数に追加して総合評価関数を呼び出す
+                    # 勤怠分析の結果を引数に追加して総合評価関数を呼び出す
                     evaluation = generate_overall_evaluation(atmosphere_result, result_df, work_analysis_result, my_name)
                     recommendation = evaluation.get('recommendation', '評価不能')
                     reason = evaluation.get('reason', '理由の取得に失敗しました。')
