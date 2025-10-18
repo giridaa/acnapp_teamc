@@ -460,7 +460,7 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
     }
 
     # AIに選ばせる選択肢を定義
-    recommendation_options = ["強く推奨する", "推奨する", "自己判断に委ねる", "推奨しない"]
+    recommendation_options = ["🤩 強く推奨する 😍", "🫠 推奨する 😗", "🙄 自己判断に委ねる 😑", "😱 推奨しない 🤮"]
 
     # ★修正3：プロンプトに「チームの労働環境」の項目を追加
     prompt = f"""
@@ -508,11 +508,11 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
 
 def get_recommendation_color(recommendation_str):
     """ 推奨度に応じて色を返す """
-    if recommendation_str == "🤩 強く推奨する 😍":
+    if recommendation_str == "強く推奨する":
         return "green"
-    elif recommendation_str == "😗 推奨する 🫠":
+    elif recommendation_str == "推奨する":
         return "blue"
-    elif recommendation_str == "☠️ 推奨しない ⚠️":
+    elif recommendation_str == "推奨しない":
         return "red"
     else: # 自己判断に委ねる
         return "orange"
