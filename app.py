@@ -58,6 +58,191 @@ except Exception as e:
     st.stop()
 
 
+# --- (新規追加) 勤怠データ分析ロジック ---
+def evaluate_work_environment(df):
+    """個人の勤怠データを分析し、整形済み結果と生データを返す"""
+    # 1. データ準備
+    df['Work start'] = pd.to_datetime(df['Work start'], errors='coerce')
+    df['Work end'] = pd.to_datetime(df['Work end'], errors='coerce')
+    df['Break start'] = pd.to_datetime(df['Break start'], errors='coerce')
+    df['Break end'] = pd.to_datetime(df['Break end'], errors='coerce')
+    df.dropna(subset=['Work start', 'Work end'], inplace=True)
+
+    df['Duration'] = df['Work end'] - df['Work start']
+    df['Break Duration'] = df['Break end'] - df['Break start']
+    df['Break Duration'].fillna(pd.Timedelta(seconds=0), inplace=True)
+    df['Real_Duration'] = df['Duration'] - df['Break Duration']
+
+    daily_summary = df.groupby(df['Work start'].dt.date).agg(
+        Total_Work_Duration=('Real_Duration', 'sum'),
+        Total_Break_Duration=('Break Duration', 'sum')
+    ).reset_index()
+    daily_summary.columns = ['Date', 'Total Work Duration', 'Total Break Duration']
+
+    # 2. 生データの計算
+    daily_summary['Daily_Overtime'] = daily_summary['Total Work Duration'] - pd.Timedelta(hours=8)
+    daily_summary['Daily_Overtime'] = daily_summary['Daily_Overtime'].apply(lambda x: max(x, pd.Timedelta(0)))
+    
+    high_daily_overtime_days = daily_summary[daily_summary['Daily_Overtime'] >= pd.Timedelta(hours=5)]
+    is_dangerous_by_daily_ot = False
+    if not high_daily_overtime_days.empty:
+        high_daily_overtime_days = high_daily_overtime_days.copy()
+        high_daily_overtime_days['Date'] = pd.to_datetime(high_daily_overtime_days['Date'])
+        monthly_high_ot_counts = high_daily_overtime_days.groupby(high_daily_overtime_days['Date'].dt.to_period('M')).size()
+        if (monthly_high_ot_counts >= 4).any():
+            is_dangerous_by_daily_ot = True
+
+    overtime_days_full = daily_summary[daily_summary['Total Work Duration'] > pd.Timedelta(hours=8)]
+    num_overtime_days = len(overtime_days_full)
+
+    daily_summary['Date'] = pd.to_datetime(daily_summary['Date'])
+    if daily_summary.empty:
+        return {}, {} 
+        
+    weekly_work_hours = daily_summary.groupby([daily_summary['Date'].dt.isocalendar().year, daily_summary['Date'].dt.isocalendar().week])['Total Work Duration'].sum().reset_index()
+    weekly_work_hours.columns = ['Year', 'Week', 'Total Weekly Duration']
+    weekly_work_hours['Overtime'] = weekly_work_hours['Total Weekly Duration'] - pd.Timedelta(hours=40)
+    weekly_work_hours['Overtime'] = weekly_work_hours['Overtime'].apply(lambda x: max(x, pd.Timedelta(0)))
+
+    def get_week_start_date(row):
+        return pd.to_datetime(f'{int(row["Year"])}-W{int(row["Week"])}-1', format='%G-W%V-%u')
+    weekly_work_hours['Week_Start_Date'] = weekly_work_hours.apply(get_week_start_date, axis=1)
+
+    average_weekly_overtime = weekly_work_hours['Overtime'].mean()
+    avg_overtime_hours = average_weekly_overtime.total_seconds() / 3600 if pd.notna(average_weekly_overtime) else 0
+
+    dangerous_weeks = weekly_work_hours[weekly_work_hours['Overtime'] >= pd.Timedelta(hours=10)]
+    is_dangerous_by_weekly_ot = not dangerous_weeks.empty
+    is_dangerous = is_dangerous_by_weekly_ot or is_dangerous_by_daily_ot
+
+    inadequate_break_days = overtime_days_full[overtime_days_full['Total Break Duration'] < pd.Timedelta(hours=1)]
+    num_inadequate_break_days = len(inadequate_break_days)
+
+    # 3. 傾向と理由の判定
+    overtime_trend = "通常"
+    trend_reason = "週平均残業時間・残業日数が基準の範囲内です"
+    if is_dangerous:
+        overtime_trend = "過重労働傾向あり"
+        reasons = []
+        if is_dangerous_by_weekly_ot:
+            reasons.append("週残業10h超")
+        if is_dangerous_by_daily_ot:
+            reasons.append("月間5h超残業が4回以上")
+        trend_reason = "、".join(reasons) + "のため"
+    elif avg_overtime_hours >= 5:
+        overtime_trend = "残業傾向あり"
+        trend_reason = "週平均残業時間が5時間を超えているため"
+
+    # 4. 結果の組み立て
+    raw_results = {
+        'avg_overtime_hours': avg_overtime_hours,
+        'num_overtime_days': num_overtime_days,
+        'num_inadequate_break_days': num_inadequate_break_days,
+        'is_dangerous': is_dangerous
+    }
+
+    display_results = {
+        "残業評価": overtime_trend,
+        "評価理由": trend_reason,
+        "週平均残業時間": f"{avg_overtime_hours:.2f} 時間",
+        "残業日数": f"{num_overtime_days}日",
+        "休憩不足の日数(8h超労働/1h未満休憩)": f"{num_inadequate_break_days}日",
+        "残業が多い週(週残業10h超)": "なし",
+        "長時間残業日(残業5h超/1日)": "なし"
+    }
+    if is_dangerous:
+        if is_dangerous_by_weekly_ot:
+            display_results["残業が多い週(週残業10h超)"] = ", ".join(dangerous_weeks['Week_Start_Date'].dt.strftime('%Y/%m/%d週').tolist())
+        if is_dangerous_by_daily_ot:
+            display_results["長時間残業日(残業5h超/1日)"] = "月に4回以上発生"
+
+    return display_results, raw_results
+
+def generate_chart_data(all_dfs):
+    """複数人の勤怠データからプロジェクト全体の週次推移チャート用データを生成する"""
+    if not all_dfs:
+        return pd.DataFrame()
+
+    all_weekly_data = []
+    
+    for df in all_dfs:
+        # 1. 個人のDFごとにデータ準備
+        df['Work start'] = pd.to_datetime(df['Work start'], errors='coerce')
+        df['Work end'] = pd.to_datetime(df['Work end'], errors='coerce')
+        df['Break start'] = pd.to_datetime(df['Break start'], errors='coerce')
+        df['Break end'] = pd.to_datetime(df['Break end'], errors='coerce')
+        df.dropna(subset=['Work start', 'Work end'], inplace=True)
+        
+        df['Duration'] = df['Work end'] - df['Work start']
+        df['Break Duration'] = df['Break end'] - df['Break start']
+        df['Break Duration'].fillna(pd.Timedelta(seconds=0), inplace=True)
+        df['Real_Duration'] = df['Duration'] - df['Break Duration']
+
+        daily_summary = df.groupby(df['Work start'].dt.date).agg(
+            Total_Work_Duration=('Real_Duration', 'sum')
+        ).reset_index()
+        daily_summary.columns = ['Date', 'Total Work Duration']
+        daily_summary['Date'] = pd.to_datetime(daily_summary['Date'])
+
+        if daily_summary.empty:
+            continue
+
+        # 2. 個人の週次サマリー作成
+        weekly_summary = daily_summary.groupby([
+            daily_summary['Date'].dt.isocalendar().year,
+            daily_summary['Date'].dt.isocalendar().week
+        ]).agg(
+            Total_Work_Duration=('Total Work Duration', 'sum'),
+            OT_Days=('Total Work Duration', lambda x: (x > pd.Timedelta(hours=8)).sum())
+        ).reset_index()
+        weekly_summary.columns = ['Year', 'Week', 'Total Weekly Duration', 'OT_Count']
+        
+        weekly_summary['Overtime'] = weekly_summary['Total Weekly Duration'] - pd.Timedelta(hours=40)
+        weekly_summary['Overtime'] = weekly_summary['Overtime'].apply(lambda x: max(x, pd.Timedelta(0)))
+        
+        all_weekly_data.append(weekly_summary)
+
+    if not all_weekly_data:
+        return pd.DataFrame()
+
+    # 3. 全員の週次サマリーを結合して平均化
+    combined_weekly = pd.concat(all_weekly_data, ignore_index=True)
+    
+    project_avg_weekly = combined_weekly.groupby(['Year', 'Week']).agg(
+        Overtime=('Overtime', 'mean'),
+        OT_Count=('OT_Count', 'mean')
+    ).reset_index()
+
+    # 4. チャート用のDataFrameを作成
+    def get_week_start_date(row):
+        return pd.to_datetime(f'{int(row["Year"])}-W{int(row["Week"])}-1', format='%G-W%V-%u')
+    project_avg_weekly['Week_Start_Date'] = project_avg_weekly.apply(get_week_start_date, axis=1)
+    
+    if project_avg_weekly.empty:
+        return pd.DataFrame()
+
+    project_avg_weekly.set_index('Week_Start_Date', inplace=True)
+    
+    latest_date = project_avg_weekly.index.max()
+    six_months_ago = latest_date - pd.DateOffset(months=6)
+    
+    full_date_range = pd.date_range(start=six_months_ago, end=latest_date, freq='W-MON')
+    
+    project_avg_weekly = project_avg_weekly.reindex(full_date_range, fill_value=0)
+    
+    if 'Overtime' in project_avg_weekly.columns:
+         project_avg_weekly['Overtime'] = pd.to_timedelta(project_avg_weekly['Overtime'])
+
+    project_avg_weekly = project_avg_weekly.sort_index()
+
+    chart_df = pd.DataFrame({
+        '週平均残業時間(h)': (project_avg_weekly['Overtime'].dt.total_seconds() / 3600),
+        '週平均残業日数': project_avg_weekly['OT_Count']
+    })
+    
+    return chart_df
+
+
 # --- 2. Big5性格分析 + ACN独自性格のロジック ---
 PERSONALITY_WORDS = {
     ## Big5
@@ -242,7 +427,6 @@ def get_weather_icon(weather_str):
     }
     return weather_map.get(weather_str, '❓')
 
-##ここから修正
 # --- 3-3. Gemini APIを用いた総合評価関数 ---
 def generate_overall_evaluation(atmosphere_result, result_df, my_name, max_retries=3):
     """
@@ -322,26 +506,28 @@ def get_recommendation_color(recommendation_str):
         return "red"
     else: # 自己判断に委ねる
         return "orange"
-##修正ここまで
 
 # --- 4. Streamlitアプリケーションの画面 ---
 st.title('📊 アサイン検討PJの分析アプリ')
-st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データとあなたのチャットデータ(CSV)をアップロードすると、チームの雰囲気やメンバーの性格傾向を分析し、PJとあなたのマッチングを診断します。')
+st.write('アサイン予定のPJメンバーのチャットデータ、MTG会話データ、勤怠データとあなたのチャットデータ(CSV)をアップロードすると、チームの雰囲気や労働環境、メンバーの性格傾向を分析し、PJとあなたのマッチングを診断します。')
 st.write('---')
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.subheader("🗫 PJメンバーのTeamsチャット")
-    chat_files = st.file_uploader("PJのチャットCSVを選択", type="csv", accept_multiple_files=True, key="chat_uploader")
+    st.subheader("🗫 PJチャット")
+    chat_files = st.file_uploader("チャットCSVを選択", type="csv", accept_multiple_files=True, key="chat_uploader")
 with col2:
-    st.subheader("🗣 PJメンバーのMTG会話")
-    transcript_files = st.file_uploader("音声テキストのCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
+    st.subheader("🗣 PJのMTG会話")
+    transcript_files = st.file_uploader("音声テキストCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
 with col3:
-    st.subheader("🗨 自分のTeamsチャット")
-    my_file = st.file_uploader("自分のチャットのCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
+    st.subheader("🏢 PJの勤怠データ")
+    work_files = st.file_uploader("勤怠データCSVを選択", type="csv", accept_multiple_files=True, key="work_uploader")
+with col4:
+    st.subheader("🗨 自分のチャット")
+    my_file = st.file_uploader("自分のチャットCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
 st.write('---')
 
-if (chat_files or transcript_files) and my_file:
+if (chat_files or transcript_files or work_files) and my_file:
     try:
         # --- ファイルの読み込み処理 ---
         team_chat_dfs = []
@@ -370,6 +556,20 @@ if (chat_files or transcript_files) and my_file:
                 if 'message' in team_transcript_df.columns:
                     transcript_text = ' '.join(team_transcript_df['message'].fillna('').astype(str))
 
+        # (新規追加) 勤怠データの読み込み
+        all_member_work_dfs = []
+        if work_files:
+            for file in work_files:
+                file.seek(0)
+                try: df_single = pd.read_csv(file, encoding='shift_jis')
+                except UnicodeDecodeError:
+                    file.seek(0)
+                    df_single = pd.read_csv(file, encoding='utf-8')
+                # ユーザー名をファイル名から取得（仮）CSVに'user'列があればそちらを優先
+                if 'user' not in df_single.columns:
+                    df_single['user'] = os.path.splitext(file.name)[0]
+                all_member_work_dfs.append(df_single)
+
         try:
             my_file.seek(0)
             my_df = pd.read_csv(my_file, encoding='shift_jis')
@@ -384,7 +584,7 @@ if (chat_files or transcript_files) and my_file:
             st.error("あなたのCSVファイルに 'user' 列が存在しないか、データが空です。"); st.stop()
         
         df = pd.concat([team_chat_df, my_df], ignore_index=True)
-        st.success(f'{len(chat_files) + len(transcript_files) + 1}個のファイルの読み込みに成功！')
+        st.success(f'{len(chat_files) + len(transcript_files) + len(work_files) + 1}個のファイルの読み込みに成功！')
 
         if st.button('分析を実行する'):
             st.write('---'); st.header('分析結果')
@@ -456,7 +656,56 @@ if (chat_files or transcript_files) and my_file:
             else:
                  st.info("性格分析を行うには、PJメンバーのチャットファイルと自分のチャットファイルを両方アップロードしてください。")
 
-            ##ここから修正
+            # --- (新規追加) 勤怠データ分析 ---
+            if all_member_work_dfs:
+                st.write('---')
+                st.subheader('🏢 PJチームの労働環境')
+                with st.spinner('勤怠データを分析中です...'):
+                    individual_results = []
+                    # ユーザーごとに勤怠データを結合して分析
+                    all_work_df_combined = pd.concat(all_member_work_dfs, ignore_index=True)
+                    unique_users = all_work_df_combined['user'].unique()
+                    
+                    user_dfs_for_chart = []
+                    for user in unique_users:
+                        user_df = all_work_df_combined[all_work_df_combined['user'] == user].copy()
+                        user_dfs_for_chart.append(user_df)
+                        display_res, raw_res = evaluate_work_environment(user_df)
+                        individual_results.append({
+                            'user': user,
+                            'display': display_res,
+                            'raw': raw_res
+                        })
+
+                    # プロジェクト全体の評価
+                    num_individuals = len(individual_results)
+                    avg_weekly_ot = sum(res['raw']['avg_overtime_hours'] for res in individual_results) / num_individuals
+                    avg_overtime_days = sum(res['raw']['num_overtime_days'] for res in individual_results) / num_individuals
+                    avg_inadequate_break = sum(res['raw']['num_inadequate_break_days'] for res in individual_results) / num_individuals
+
+                    project_overtime_trend = "通常"
+                    project_trend_reason = "プロジェクト全体で基準の範囲内です"
+                    is_project_dangerous = any(res['raw']['is_dangerous'] for res in individual_results)
+                    
+                    if is_project_dangerous:
+                        project_overtime_trend = "危険な労働環境"
+                        project_trend_reason = "個人評価に「過重労働傾向あり」のメンバーが含まれています"
+                    elif avg_weekly_ot >= 5:
+                        project_overtime_trend = "残業傾向あり"
+                        project_trend_reason = "プロジェクトの週平均残業時間が5時間を超えています"
+                    
+                    st.info(f"**プロジェクト全体の残業評価: {project_overtime_trend}** ({project_trend_reason})")
+                    
+                    # チャート表示
+                    chart_df = generate_chart_data(user_dfs_for_chart)
+                    if not chart_df.empty:
+                        st.line_chart(chart_df)
+
+                    # 個人別評価の表示
+                    for res in individual_results:
+                        with st.expander(f"**{res['user']}さん** の勤怠状況詳細"):
+                            st.table(pd.DataFrame([res['display']]))
+
             # --- 総合評価 ---
             st.write('---')
             st.header('👉 総合評価')
@@ -473,7 +722,6 @@ if (chat_files or transcript_files) and my_file:
                     st.info(f"**理由**: {reason}")
             else:
                 st.warning("総合評価を行うには、PJメンバーの「MTG会話」と「Teamsチャット」の両方のデータをアップロードして分析を実行する必要があります。")
-            ##修正ここまで
 
     except Exception as e:
         st.error(f"エラーが発生しました: {e}")
