@@ -520,11 +520,11 @@ with col2:
     st.subheader("🗣 PJのMTG会話")
     transcript_files = st.file_uploader("音声テキストCSVを選択", type="csv", accept_multiple_files=True, key="transcript_uploader")
 with col3:
-    st.subheader("🏢 PJの勤怠データ")
-    work_files = st.file_uploader("勤怠データCSVを選択", type="csv", accept_multiple_files=True, key="work_uploader")
-with col4:
     st.subheader("🗨 自分のチャット")
     my_file = st.file_uploader("自分のチャットCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
+with col4:
+    st.subheader("🏢 PJの勤怠データ")
+    work_files = st.file_uploader("勤怠データCSVを選択", type="csv", accept_multiple_files=True, key="work_uploader")
 st.write('---')
 
 if (chat_files or transcript_files or work_files) and my_file:
