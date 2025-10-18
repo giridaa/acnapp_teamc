@@ -508,11 +508,11 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
 
 def get_recommendation_color(recommendation_str):
     """ 推奨度に応じて色を返す """
-    if recommendation_str == "強く推奨する":
+    if recommendation_str == "🤩 強く推奨する 😍":
         return "green"
-    elif recommendation_str == "推奨する":
+    elif recommendation_str == "😗 推奨する 🫠":
         return "blue"
-    elif recommendation_str == "推奨しない":
+    elif recommendation_str == "☠️ 推奨しない ⚠️":
         return "red"
     else: # 自己判断に委ねる
         return "orange"
@@ -608,7 +608,7 @@ if (chat_files or transcript_files or work_files) and my_file:
 
             # --- チームの雰囲気分析 ---
             if transcript_text:
-                st.subheader('🤔 PJチームの雰囲気')
+                st.subheader('🤔 1.PJチームの雰囲気')
                 with st.spinner('AIがチームの雰囲気を分析中です...'):
                     atmosphere_result = generate_team_atmosphere(transcript_text)
                     weather_str = atmosphere_result.get('weather', '霧')
@@ -642,15 +642,15 @@ if (chat_files or transcript_files or work_files) and my_file:
                         for _, row in result_df.iterrows()
                     ]
                     result_df['自分との性格マッチ度 (%)'] = match_percentages
-                    st.subheader(f'🫡 {my_name} とPJメンバーの性格マッチ度')
+                    st.subheader(f'🫡 2.{my_name} とPJメンバーの性格マッチ度')
                     # 自分以外のユーザーのデータのみを抽出して表示する
                     display_df = result_df[result_df['ユーザー'] != my_name]
                     st.dataframe(display_df[['ユーザー', '最も強い性格傾向', '発言数', '自分との性格マッチ度 (%)']].sort_values('自分との性格マッチ度 (%)', ascending=False))
                     st.write('---')
-                    st.subheader('📈 自分とPJメンバーの性格比較チャート')
+                    st.subheader('📈 3.自分とPJメンバーの性格比較チャート')
                     st.plotly_chart(create_multi_user_radar_chart(result_df, my_name), use_container_width=True)
                     st.write('---')
-                    st.subheader('🎭 PJメンバーのペルソナ分析')
+                    st.subheader('🎭 4.PJメンバーのペルソナ分析')
                     other_users_df = result_df[result_df['ユーザー'] != my_name].sort_values('自分との性格マッチ度 (%)', ascending=False)
                     with st.spinner('AIが各メンバーのペルソナを生成中です...'):
                         user_list = list(other_users_df.iterrows())
@@ -677,7 +677,7 @@ if (chat_files or transcript_files or work_files) and my_file:
             # --- 勤怠データ分析 ---
             if all_member_work_dfs:
                 st.write('---')
-                st.subheader('🏢 PJチームの労働環境')
+                st.subheader('🕓 5.PJチームの勤怠状況')
                 with st.spinner('勤怠データを分析中です...'):
                     individual_results = []
                     # ユーザーごとに勤怠データを結合して分析
