@@ -459,7 +459,7 @@ def generate_overall_evaluation(atmosphere_result, result_df, work_analysis_resu
     }
 
     # AIに選ばせる選択肢を定義
-    recommendation_options = ["🤩 強く推奨する 😍", "🫠 推奨する 😗", "🙄 自己判断に委ねる 😑", "😱 推奨しない 🤮"]
+    recommendation_options = ["🤩 強く推奨する 😍", "🫠 推奨する 😗", "🙄 自己判断に委ねる 😑", "😱 推奨しない 👎"]
     prompt = f"""
     あなたは、超一流の組織人事コンサルタント兼キャリアアドバイザーです。
     以下の多角的な分析結果を基に、ユーザー（{my_name}さん）がこのプロジェクトに参加すべきかどうか、総合的な評価とアドバイスをしてください。
@@ -530,7 +530,7 @@ with col3:
     st.subheader("🗨 自分のチャット")
     my_file = st.file_uploader("自分のチャットCSVを選択", type="csv", accept_multiple_files=False, key="mychat_uploader")
 with col4:
-    st.subheader("🏢 PJの勤怠データ")
+    st.subheader("📆 PJの勤怠データ")
     work_files = st.file_uploader("勤怠データCSVを選択", type="csv", accept_multiple_files=True, key="work_uploader")
 st.write('---')
 
@@ -729,7 +729,7 @@ if (chat_files or transcript_files or work_files) and my_file:
 
             # --- 総合評価 ---
             st.write('---')
-            st.header('🫵 総合評価')
+            st.header('👉 総合評価')
 
             # 雰囲気分析と性格分析の両方のデータが揃っているか確認
             if atmosphere_result and not result_df.empty:
