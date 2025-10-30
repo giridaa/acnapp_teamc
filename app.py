@@ -412,7 +412,7 @@ def generate_persona_with_retry(
     """
     Gemini APIを呼び出してペルソナを生成する関数
     """
-    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
     default_response = {
         "persona": "AIによる人柄の解析に失敗しました。",
         "common_point": "共通点の解析に失敗しました。",
@@ -472,7 +472,7 @@ def generate_team_atmosphere(text, max_retries=3):
     """
     MTGの会話テキストからチームの雰囲気を分析する関数
     """
-    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
     default_response = {
         "atmosphere": "分析失敗",
         "description": "AIによる分析に失敗しました。",
@@ -543,7 +543,7 @@ def generate_overall_evaluation(
     """
     全ての分析結果を統合し、プロジェクトへの参加推奨度を評価する関数
     """
-    model = genai.GenerativeModel('gemini-1.5-flash-latest') # モデル名を推奨版に変更
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
 
     # AIに渡すために、これまでの分析結果を要約
     team_atmosphere = atmosphere_result.get('atmosphere', '不明')
